@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connect Instagram</title>
+</head>
+<body>
+    <h2>Finishing Instagram Connection...</h2>
+    <script>
+        fetch('/instagram/connect', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                code: "{{ code }}",
+                email: "{{ email }}"
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            document.body.innerHTML = "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+        });
+    </script>
+</body>
+</html>
