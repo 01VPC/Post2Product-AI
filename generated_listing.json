@@ -1,0 +1,13 @@
+{
+  "title": "Error generating title",
+  "description": "Error generating description. Please check your API key and input parameters.",
+  "keyword_suggestions": [],
+  "validation": {
+    "title_length_valid": true,
+    "title_no_special_chars": true,
+    "description_no_promo_language": true,
+    "description_no_urls": true,
+    "description_no_emails": true
+  },
+  "is_valid": true
+}

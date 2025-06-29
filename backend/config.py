@@ -1,30 +1,26 @@
+
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 class Config:
-    # Flask configuration
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key')
-    DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
-    
-    # Database configuration
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///post2product.db')
+    SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    
-    # Instagram API credentials
-    INSTAGRAM_APP_ID = os.environ.get('INSTAGRAM_APP_ID')
-    INSTAGRAM_APP_SECRET = os.environ.get('INSTAGRAM_APP_SECRET')
-    INSTAGRAM_REDIRECT_URI = os.environ.get('INSTAGRAM_REDIRECT_URI')
-    
-    # Amazon Marketplace API credentials
-    AMAZON_ACCESS_KEY = os.environ.get('AMAZON_ACCESS_KEY')
-    AMAZON_SECRET_KEY = os.environ.get('AMAZON_SECRET_KEY')
-    AMAZON_SELLER_ID = os.environ.get('AMAZON_SELLER_ID')
-    AMAZON_MARKETPLACE_ID = os.environ.get('AMAZON_MARKETPLACE_ID')
-    AMAZON_REFRESH_TOKEN = os.environ.get('AMAZON_REFRESH_TOKEN')
-    
-    # JWT configuration
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key')
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
     JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hour
+    JWT_REFRESH_TOKEN_EXPIRES = 2592000  # 30 days
+    
+    # Instagram Configuration
+    INSTAGRAM_CLIENT_ID = os.getenv('INSTAGRAM_CLIENT_ID')
+    INSTAGRAM_CLIENT_SECRET = os.getenv('INSTAGRAM_CLIENT_SECRET')
+    INSTAGRAM_REDIRECT_URI = os.getenv('INSTAGRAM_REDIRECT_URI')
+    
+    # Amazon Configuration
+    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+    AWS_REGION = os.getenv('AWS_REGION')
+    AMAZON_SP_API_REFRESH_TOKEN = os.getenv('AMAZON_SP_API_REFRESH_TOKEN')
+    AMAZON_SP_API_CLIENT_ID = os.getenv('AMAZON_SP_API_CLIENT_ID')
+    AMAZON_SP_API_CLIENT_SECRET = os.getenv('AMAZON_SP_API_CLIENT_SECRET')

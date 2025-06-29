@@ -1,0 +1,12 @@
+Flask
+Flask-RESTful
+flask-sqlalchemy
+Flask-JWT-Extended
+requests
+python-dotenv
+boto3
+facebook-sdk
+python-amazon-sp-api
+pandas
+gunicorn
+flask-cors

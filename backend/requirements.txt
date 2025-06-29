@@ -1,12 +1,16 @@
 Flask
-Flask-RESTful
-flask-sqlalchemy
+Flask-SQLAlchemy
+Flask-Migrate
 Flask-JWT-Extended
-requests
+Flask-CORS
 python-dotenv
+requests
+psycopg2-binary
+python-instagram
 boto3
-facebook-sdk
-python-amazon-sp-api
 pandas
+numpy
+pytest
 gunicorn
-flask-cors
+# sp-api
+python-amazon-sp-api

@@ -1,36 +1,32 @@
 from utils.database import db
 from datetime import datetime
-from werkzeug.security import generate_password_hash, check_password_hash
 
 class Product(db.Model):
-    __tablename__ = 'products'
-    
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('instagram_posts.id'), nullable=True)
-    title = db.Column(db.String(256), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     price = db.Column(db.Float, nullable=False)
-    sku = db.Column(db.String(64), unique=True)
-    amazon_listing_id = db.Column(db.String(64))
-    amazon_asin = db.Column(db.String(10))
-    inventory_count = db.Column(db.Integer, default=0)
+    stock = db.Column(db.Integer, default=0)
+    sku = db.Column(db.String(100), unique=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    user = db.relationship('User', backref='products')
-    sales = db.relationship('Sale', backref='product')
+    # Amazon specific fields
+    amazon_asin = db.Column(db.String(20))
+    amazon_listing_id = db.Column(db.String(100))
+    amazon_price = db.Column(db.Float)
+    amazon_stock = db.Column(db.Integer)
     
     def to_dict(self):
         return {
             'id': self.id,
-            'title': self.title,
+            'name': self.name,
             'description': self.description,
             'price': self.price,
+            'stock': self.stock,
             'sku': self.sku,
-            'amazon_listing_id': self.amazon_listing_id,
             'amazon_asin': self.amazon_asin,
-            'inventory_count': self.inventory_count,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'amazon_price': self.amazon_price,
+            'amazon_stock': self.amazon_stock,
+            'created_at': self.created_at.isoformat()
         }

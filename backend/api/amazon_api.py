@@ -1,213 +1,105 @@
-# api/amazon_api.py
-import boto3
-from sp_api.api import Products, Orders, Reports, Feeds
-from sp_api.base import Marketplaces
-from sp_api.base.credential_provider import CredentialProvider
-from flask import current_app
-import json
-from datetime import datetime, timedelta
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from services.amazon_service import AmazonService
+from models.user import User
 from models.product import Product
-from models.sale import Sale
-from utils.database import db
+from datetime import datetime, timedelta
 
-class AmazonAPI:
-    def __init__(self, access_key=None, secret_key=None, seller_id=None, marketplace_id=None, refresh_token=None):
-        self.access_key = access_key or current_app.config['AMAZON_ACCESS_KEY']
-        self.secret_key = secret_key or current_app.config['AMAZON_SECRET_KEY']
-        self.seller_id = seller_id or current_app.config['AMAZON_SELLER_ID']
-        self.marketplace_id = marketplace_id or current_app.config['AMAZON_MARKETPLACE_ID']
-        self.refresh_token = refresh_token or current_app.config['AMAZON_REFRESH_TOKEN']
-        
-        # Set up credentials
-        self.credentials = CredentialProvider(
-            access_key=self.access_key,
-            secret_key=self.secret_key,
-            refresh_token=self.refresh_token,
+amazon_api = Blueprint('amazon_api', __name__)
+
+@amazon_api.route('/connect', methods=['POST'])
+@jwt_required()
+def connect_amazon():
+    user_id = get_jwt_identity()
+    data = request.json
+    
+    if not data or not all(k in data for k in ['seller_id', 'refresh_token']):
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    try:
+        # Test Amazon connection
+        amazon_service = AmazonService(data['refresh_token'])
+        test_response = amazon_service.get_orders(
+            created_after=(datetime.utcnow() - timedelta(days=1))
         )
         
-        # Set marketplace (US by default)
-        self.marketplace = Marketplaces.US
+        if 'error' in test_response:
+            return jsonify({'error': 'Invalid Amazon credentials'}), 400
         
-    def create_product_listing(self, product):
-        """Create a new product listing on Amazon"""
-        try:
-            # Create product feed
-            feed_content = self._create_product_feed(product)
-            
-            # Submit feed
-            feeds_api = Feeds(credentials=self.credentials, marketplace=self.marketplace)
-            feed_response = feeds_api.submit_feed(
-                feed_type='POST_PRODUCT_DATA',
-                file_content=feed_content,
-                content_type='text/xml'
-            )
-            
-            # Return feed id to track progress
-            return {
-                'feed_id': feed_response.feed_id,
-                'status': 'submitted'
-            }
-        except Exception as e:
-            return {'error': str(e)}
-    
-    def _create_product_feed(self, product):
-        """Create XML product feed for Amazon listing"""
-        xml_template = f"""<?xml version="1.0" encoding="UTF-8"?>
-        <AmazonEnvelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="amzn-envelope.xsd">
-            <Header>
-                <DocumentVersion>1.01</DocumentVersion>
-                <MerchantIdentifier>{self.seller_id}</MerchantIdentifier>
-            </Header>
-            <MessageType>Product</MessageType>
-            <Message>
-                <MessageID>1</MessageID>
-                <OperationType>Update</OperationType>
-                <Product>
-                    <SKU>{product.sku}</SKU>
-                    <StandardProductID>
-                        <Type>ASIN</Type>
-                        <Value>{product.amazon_asin if product.amazon_asin else ''}</Value>
-                    </StandardProductID>
-                    <ProductTaxCode>A_GEN_NOTAX</ProductTaxCode>
-                    <DescriptionData>
-                        <Title>{product.title}</Title>
-                        <Description>{product.description}</Description>
-                        <BulletPoint>Sourced from Instagram</BulletPoint>
-                        <BulletPoint>High quality product</BulletPoint>
-                        <ItemDimensions>
-                            <Weight unitOfMeasure="LB">1</Weight>
-                        </ItemDimensions>
-                        <MSRP currency="USD">{product.price}</MSRP>
-                    </DescriptionData>
-                    <ProductData>
-                        <Generic>
-                            <Manufacturer>Post2ProductAI</Manufacturer>
-                        </Generic>
-                    </ProductData>
-                </Product>
-            </Message>
-        </AmazonEnvelope>
-        """
-        return xml_template
-    
-    def get_inventory(self, skus=None):
-        """Get inventory for products"""
-        try:
-            products_api = Products(credentials=self.credentials, marketplace=self.marketplace)
-            
-            if skus:
-                inventory_response = products_api.get_inventory_summary(sku_list=skus)
-            else:
-                inventory_response = products_api.get_inventory_summary()
-                
-            return inventory_response.payload
-        except Exception as e:
-            return {'error': str(e)}
-    
-    def update_inventory(self, sku, quantity):
-        """Update inventory for a product"""
-        try:
-            # Create inventory feed
-            feed_content = self._create_inventory_feed(sku, quantity)
-            
-            # Submit feed
-            feeds_api = Feeds(credentials=self.credentials, marketplace=self.marketplace)
-            feed_response = feeds_api.submit_feed(
-                feed_type='POST_INVENTORY_AVAILABILITY_DATA',
-                file_content=feed_content,
-                content_type='text/xml'
-            )
-            
-            return {
-                'feed_id': feed_response.feed_id,
-                'status': 'submitted'
-            }
-        except Exception as e:
-            return {'error': str(e)}
-    
-    def _create_inventory_feed(self, sku, quantity):
-        """Create XML inventory feed"""
-        xml_template = f"""<?xml version="1.0" encoding="UTF-8"?>
-        <AmazonEnvelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="amzn-envelope.xsd">
-            <Header>
-                <DocumentVersion>1.01</DocumentVersion>
-                <MerchantIdentifier>{self.seller_id}</MerchantIdentifier>
-            </Header>
-            <MessageType>Inventory</MessageType>
-            <Message>
-                <MessageID>1</MessageID>
-                <OperationType>Update</OperationType>
-                <Inventory>
-                    <SKU>{sku}</SKU>
-                    <Quantity>{quantity}</Quantity>
-                    <FulfillmentLatency>1</FulfillmentLatency>
-                </Inventory>
-            </Message>
-        </AmazonEnvelope>
-        """
-        return xml_template
-    
-    def get_orders(self, days_back=7):
-        """Get orders from the last X days"""
-        try:
-            orders_api = Orders(credentials=self.credentials, marketplace=self.marketplace)
-            
-            # Calculate date X days back
-            start_date = (datetime.utcnow() - timedelta(days=days_back)).isoformat()
-            
-            orders_response = orders_api.get_orders(CreatedAfter=start_date)
-            return orders_response.payload
-        except Exception as e:
-            return {'error': str(e)}
-    
-    def sync_sales(self, user_id, days_back=7):
-        """Sync Amazon sales to database"""
-        orders_data = self.get_orders(days_back)
+        # Update user's Amazon credentials
+        user.amazon_seller_id = data['seller_id']
+        user.amazon_refresh_token = data['refresh_token']
+        user.amazon_connected = True
+        db.session.commit()
         
-        if 'error' in orders_data:
-            return orders_data
+        return jsonify({
+            'message': 'Amazon connected successfully',
+            'user': user.to_dict()
+        })
         
-        synced_sales = []
-        
-        for order in orders_data.get('Orders', []):
-            # Get order items
-            try:
-                orders_api = Orders(credentials=self.credentials, marketplace=self.marketplace)
-                order_items = orders_api.get_order_items(order['AmazonOrderId']).payload
-                
-                for item in order_items.get('OrderItems', []):
-                    # Find the product by SKU
-                    product = Product.query.filter_by(user_id=user_id, sku=item['SellerSKU']).first()
-                    
-                    if product:
-                        # Check if sale already exists
-                        existing_sale = Sale.query.filter_by(
-                            user_id=user_id,
-                            product_id=product.id,
-                            order_id=order['AmazonOrderId'],
-                            platform='amazon'
-                        ).first()
-                        
-                        if not existing_sale:
-                            # Create new sale
-                            sale = Sale(
-                                product_id=product.id,
-                                user_id=user_id,
-                                platform='amazon',
-                                quantity=int(item['QuantityOrdered']),
-                                sale_price=float(item['ItemPrice']['Amount']),
-                                order_id=order['AmazonOrderId'],
-                                sale_date=datetime.fromisoformat(order['PurchaseDate'].replace('Z', '+00:00'))
-                            )
-                            db.session.add(sale)
-                            synced_sales.append(sale)
-                            
-                            # Update inventory count
-                            product.inventory_count -= int(item['QuantityOrdered'])
-            except Exception as e:
-                continue
-        
-        if synced_sales:
-            db.session.commit()
-            
-        return {'synced_sales': len(synced_sales)}
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@amazon_api.route('/listings', methods=['GET'])
+@jwt_required()
+def get_listings():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if not user or not user.amazon_connected:
+        return jsonify({'error': 'Amazon not connected'}), 400
+    
+    listings = AmazonListing.query.filter_by(user_id=user_id).all()
+    return jsonify({
+        'listings': [listing.to_dict() for listing in listings]
+    })
+
+@amazon_api.route('/listings', methods=['POST'])
+@jwt_required()
+def create_listing():
+    user_id = get_jwt_identity()
+    data = request.json
+    
+    if not data or not all(k in data for k in ['product_id']):
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    user = User.query.get(user_id)
+    if not user or not user.amazon_connected:
+        return jsonify({'error': 'Amazon not connected'}), 400
+    
+    product = Product.query.get(data['product_id'])
+    if not product or product.user_id != user_id:
+        return jsonify({'error': 'Product not found'}), 404
+    
+    amazon_service = AmazonService(user.amazon_refresh_token)
+    result = amazon_service.create_listing(product)
+    
+    if 'error' in result:
+        return jsonify(result), 400
+    
+    return jsonify(result), 201
+
+@amazon_api.route('/listings/<int:listing_id>/inventory', methods=['PUT'])
+@jwt_required()
+def update_inventory(listing_id):
+    user_id = get_jwt_identity()
+    data = request.json
+    
+    if not data or 'quantity' not in data:
+        return jsonify({'error': 'Missing quantity'}), 400
+    
+    user = User.query.get(user_id)
+    if not user or not user.amazon_connected:
+        return jsonify({'error': 'Amazon not connected'}), 400
+    
+    amazon_service = AmazonService(user.amazon_refresh_token)
+    result = amazon_service.update_inventory(listing_id, data['quantity'])
+    
+    if 'error' in result:
+        return jsonify(result), 400
+    
+    return jsonify(result)

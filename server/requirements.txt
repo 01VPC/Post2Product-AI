@@ -1,0 +1,19 @@
+flask
+flask-cors
+flask-pymongo
+python-dotenv
+requests
+pymongo
+python-jose
+passlib
+gunicorn
+pillow
+boto3
+instagram-api
+# amazon-paapi5-python-sdk
+pycryptodome
+flask-jwt-extended
+mongoengine
+dnspython
+Werkzeug
+google-generativeai
